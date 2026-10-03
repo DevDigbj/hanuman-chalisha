@@ -90,7 +90,14 @@ async function copyText(text: string) {
   }
 }
 
-/** Floating share button (bottom-right) with a panel of share targets. */
+/** True on phones / tablets (touch screen) that offer the system share sheet. */
+const isPhoneWithShareSheet = () =>
+  typeof navigator.share === "function" && window.matchMedia("(pointer: coarse)").matches;
+
+/**
+ * Floating share button (bottom-right). On phones it opens the phone's own share sheet
+ * directly; on computers it shows a panel of share targets.
+ */
 export default function ShareButton() {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -126,13 +133,23 @@ export default function ShareButton() {
     }
   };
 
+  /** Opens the system share sheet. Resolves false if it could not be shown at all. */
   const nativeShare = async () => {
     try {
       await navigator.share({ title: SHARE_TITLE, text: SHARE_TEXT, url: pageUrl() });
       setOpen(false);
-    } catch {
-      /* The person closed the share sheet - nothing to do. */
+      return true;
+    } catch (error) {
+      // AbortError = the person closed the sheet, which is fine; anything else means it failed.
+      return (error as DOMException)?.name === "AbortError";
     }
+  };
+
+  const onFabClick = async () => {
+    if (!open && isPhoneWithShareSheet()) {
+      if (await nativeShare()) return;
+    }
+    setOpen((value) => !value); // computers, or phones where the share sheet isn't available
   };
 
   return (
@@ -176,7 +193,7 @@ export default function ShareButton() {
         aria-label={open ? "Close share options" : "Share this page"}
         aria-expanded={open}
         aria-controls="share-panel"
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => void onFabClick()}
       >
         {open ? <CloseIcon size={20} /> : <ShareIcon />}
       </button>
